@@ -1,157 +1,175 @@
-import { useState } from "react";
 import {
   BarChart3,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
+  Check,
   DoorOpen,
-  FileDown,
   Home,
   PlugZap,
   Share,
   SlidersHorizontal,
   SquarePlus,
+  X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import type { Project, TabId } from "@/src/types/energy";
 
-const TUTORIAL_STEPS = [
-  {
-    step: 1,
-    icon: Home,
-    title: "1. Crie sua instalação e tarifa",
-    badge: "Início rápido",
-    description:
-      "Informe o nome do local (casa, comércio ou indústria), escolha o estado e a distribuidora para puxar a tarifa oficial ou digite o valor da sua conta de luz.",
-    tips: [
-      "Você pode incluir a bandeira tarifária ativa no cálculo.",
-      "Cadastre quantas instalações diferentes desejar.",
-    ],
-  },
-  {
-    step: 2,
-    icon: DoorOpen,
-    title: "2. Adicione seus ambientes (até 99)",
-    badge: "Aba Ambientes",
-    description:
-      "Organize o consumo por cômodos ou setores. Você pode criar de 1 até 99 ambientes iguais de uma única vez (ex.: Quartos, Salas, Galpões).",
-    tips: [
-      "Toque em qualquer ambiente para filtrar seus aparelhos.",
-      "Cada ambiente mostra sua participação % no gasto mensal.",
-    ],
-  },
-  {
-    step: 3,
-    icon: PlugZap,
-    title: "3. Cadastre os aparelhos",
-    badge: "Aba Aparelhos",
-    description:
-      "Busque na biblioteca com 4.998 aparelhos prontos ou cadastre manualmente informando potência (W), quantidade e horas de uso por dia.",
-    tips: [
-      "Use a rotina semanal se o aparelho liga em horários diferentes por dia.",
-      "Os cálculos atualizam automaticamente em kWh e R$.",
-    ],
-  },
-  {
-    step: 4,
-    icon: BarChart3,
-    title: "4. Veja gráficos, simule e exporte PDF",
-    badge: "Início • Simular • Ajustes",
-    description:
-      "No Início, acompanhe gráficos por categoria, semana, ambientes e aparelhos. Em Simular, teste reduzir o uso e compare Antes vs. Depois — depois salve tudo em PDF!",
-    tips: [
-      "A simulação mostra economia mensal e anual em tempo real.",
-      "O PDF exportado já inclui gráficos e comparativo Antes vs. Depois.",
-    ],
-  },
-] as const;
-
-export function FirstUseTutorial({
-  hasProject,
-  onFinish,
+export function InteractiveTutorialCard({
+  project,
+  currentTab,
+  hasSimChanges,
   onCreateProject,
+  onAddEnvironment,
+  onAddEquipment,
+  onGoHome,
+  onGoSimulate,
+  onDismiss,
 }: {
-  hasProject: boolean;
-  onFinish: () => void;
+  project: Project | undefined;
+  currentTab: TabId;
+  hasSimChanges: boolean;
   onCreateProject: () => void;
+  onAddEnvironment: () => void;
+  onAddEquipment: () => void;
+  onGoHome: () => void;
+  onGoSimulate: () => void;
+  onDismiss: () => void;
 }) {
-  const [idx, setIdx] = useState(0);
-  const current = TUTORIAL_STEPS[idx] ?? TUTORIAL_STEPS[0];
-  const Icon = current.icon;
-  const isLast = idx === TUTORIAL_STEPS.length - 1;
+  const step1Done = Boolean(project);
+  const step2Done = Boolean(project && project.environments.length > 0);
+  const step3Done = Boolean(project && project.equipments.length > 0);
+  const step4Done = Boolean(step3Done && hasSimChanges);
+
+  const activeStep = !step1Done ? 1 : !step2Done ? 2 : !step3Done ? 3 : 4;
+
+  const steps = [
+    { num: 1, label: "Instalação", done: step1Done, icon: Home, onClick: onCreateProject },
+    {
+      num: 2,
+      label: "Ambientes",
+      done: step2Done,
+      icon: DoorOpen,
+      onClick: step1Done ? onAddEnvironment : onCreateProject,
+    },
+    {
+      num: 3,
+      label: "Aparelhos",
+      done: step3Done,
+      icon: PlugZap,
+      onClick: step2Done ? onAddEquipment : step1Done ? onAddEnvironment : onCreateProject,
+    },
+    {
+      num: 4,
+      label: "Gráficos & Simular",
+      done: step4Done,
+      icon: BarChart3,
+      onClick: onGoSimulate,
+    },
+  ] as const;
 
   return (
-    <div className="tutorial-flow">
-      <div className="tutorial-progress" aria-label={`Passo ${idx + 1} de ${TUTORIAL_STEPS.length}`}>
-        {TUTORIAL_STEPS.map((item, i) => (
-          <button
-            key={item.step}
-            type="button"
-            className={`tutorial-dot ${i === idx ? "active" : i < idx ? "done" : ""}`}
-            aria-label={`Ir para passo ${item.step}`}
-            onClick={() => setIdx(i)}
-          />
-        ))}
-      </div>
-
-      <div className="tutorial-card">
-        <div className="tutorial-icon-wrap">
-          <Icon size={28} />
-        </div>
-        <div className="tutorial-meta">
+    <section className="live-tutorial-card" aria-label="Guia interativo passo a passo">
+      <div className="live-tutorial-header">
+        <div>
           <span className="tutorial-step-label">
-            Passo {idx + 1} de {TUTORIAL_STEPS.length} · {current.badge}
+            Guia interativo · Etapa {activeStep} de 4
           </span>
-          <h3>{current.title}</h3>
+          <h2>
+            {activeStep === 1 && "Crie sua primeira instalação"}
+            {activeStep === 2 && "Agora adicione os ambientes"}
+            {activeStep === 3 && "Cadastre um aparelho real"}
+            {activeStep === 4 &&
+              (step4Done
+                ? "Tudo pronto! Simulação testada"
+                : "Explore seus gráficos e simule economia")}
+          </h2>
         </div>
-        <p className="tutorial-desc">{current.description}</p>
-        <ul className="tutorial-tips">
-          {current.tips.map((tip) => (
-            <li key={tip}>
-              <CheckCircle2 size={15} />
-              <span>{tip}</span>
-            </li>
-          ))}
-        </ul>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="live-tutorial-close"
+          aria-label="Fechar guia interativo"
+          title="Fechar guia"
+          onClick={onDismiss}
+        >
+          <X size={16} />
+        </Button>
       </div>
 
-      <div className="tutorial-quick-legend">
-        <span>
-          <SlidersHorizontal size={14} /> Simular economia
-        </span>
-        <span>
-          <FileDown size={14} /> PDF com gráficos
-        </span>
+      <div className="live-tutorial-steps">
+        {steps.map((s) => {
+          const Icon = s.icon;
+          const isCurrent = activeStep === s.num;
+          return (
+            <button
+              key={s.num}
+              type="button"
+              onClick={s.onClick}
+              className={`live-step-pill ${s.done ? "done" : ""} ${isCurrent ? "current" : ""}`}
+            >
+              <span className="live-step-badge">
+                {s.done ? <Check size={12} /> : <Icon size={12} />}
+              </span>
+              <span className="live-step-text">{s.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="sheet-actions">
-        {idx === 0 ? (
-          <Button className="btn ghost" onClick={onFinish}>
-            Pular tutorial
-          </Button>
-        ) : (
-          <Button className="btn ghost" onClick={() => setIdx((prev) => Math.max(0, prev - 1))}>
-            <ChevronLeft size={16} /> Anterior
+      <p className="live-tutorial-desc">
+        {activeStep === 1 &&
+          "Informe o nome do local (casa, loja ou empresa), estado e tarifa de energia para iniciar os cálculos reais."}
+        {activeStep === 2 &&
+          `Instalação "${project?.name}" criada! Agora cadastre seus cômodos ou setores (você pode criar de 1 até 99 de uma vez).`}
+        {activeStep === 3 &&
+          `${project?.environments.length} ambiente(s) pronto(s)! Escolha um aparelho da biblioteca com 4.998 itens ou cadastre manualmente.`}
+        {activeStep === 4 &&
+          (step4Done
+            ? "Você já cadastrou instalação, ambientes, aparelhos e simulou economia Antes vs. Depois. Agora você pode exportar o PDF completo ou continuar ajustando!"
+            : "Seus cálculos e gráficos já estão ativos com base nos itens reais! Teste reduzir minutos na aba Simular para ver o comparativo Antes vs. Depois.")}
+      </p>
+
+      <div className="live-tutorial-actions">
+        {activeStep === 1 && (
+          <Button className="btn sm primary" onClick={onCreateProject}>
+            <Home size={15} /> Criar instalação agora
           </Button>
         )}
+        {activeStep === 2 && (
+          <Button className="btn sm primary" onClick={onAddEnvironment}>
+            <DoorOpen size={15} /> Adicionar ambiente(s)
+          </Button>
+        )}
+        {activeStep === 3 && (
+          <Button className="btn sm primary" onClick={onAddEquipment}>
+            <PlugZap size={15} /> Adicionar aparelho
+          </Button>
+        )}
+        {activeStep === 4 && (
+          <>
+            {currentTab !== "home" && (
+              <Button className="btn sm ghost" onClick={onGoHome}>
+                <BarChart3 size={15} /> Ver gráficos no Início
+              </Button>
+            )}
+            {currentTab !== "simulate" && (
+              <Button className="btn sm primary" onClick={onGoSimulate}>
+                <SlidersHorizontal size={15} /> Testar Simular (Antes vs. Depois)
+              </Button>
+            )}
+            {(step4Done || currentTab === "simulate") && (
+              <Button className="btn sm primary" onClick={onDismiss}>
+                <Check size={15} /> Concluir guia
+              </Button>
+            )}
+          </>
+        )}
 
-        {!isLast ? (
-          <Button
-            className="btn primary"
-            onClick={() => setIdx((prev) => Math.min(TUTORIAL_STEPS.length - 1, prev + 1))}
-          >
-            Próximo <ChevronRight size={16} />
-          </Button>
-        ) : hasProject ? (
-          <Button className="btn primary" onClick={onFinish}>
-            Começar a usar
-          </Button>
-        ) : (
-          <Button className="btn primary" onClick={onCreateProject}>
-            Criar minha instalação
+        {activeStep < 4 && (
+          <Button variant="ghost" className="btn sm ghost" onClick={onDismiss}>
+            Pular guia
           </Button>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

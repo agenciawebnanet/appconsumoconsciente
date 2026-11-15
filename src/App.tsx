@@ -19,7 +19,7 @@ import {
   SettingsActionRow,
 } from "@/src/components/SharedPrimitives";
 import { SimulatorView } from "@/src/components/SimulatorView";
-import { FirstUseTutorial, IosInstallTutorial } from "@/src/components/TutorialModals";
+import { InteractiveTutorialCard, IosInstallTutorial } from "@/src/components/TutorialModals";
 import { Button } from "@/src/components/ui/button";
 import { UsageChart } from "@/src/components/UsageChart";
 import {
@@ -62,6 +62,7 @@ function ConsumoApp() {
   const [isOfflineReady, setIsOfflineReady] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     try {
@@ -125,7 +126,7 @@ function ConsumoApp() {
 
     try {
       if (localStorage.getItem("cc_tutorial_seen_v1") !== "1") {
-        setModal({ type: "tutorial" });
+        setShowTutorial(true);
       }
     } catch {
       // ignore storage read errors
@@ -172,12 +173,17 @@ function ConsumoApp() {
     }
   };
 
-  const closeModal = () => {
-    if (modal?.type === "tutorial") {
-      markTutorialSeen();
-    }
-    setModal(null);
+  const dismissTutorial = () => {
+    markTutorialSeen();
+    setShowTutorial(false);
   };
+
+  const openTutorial = () => {
+    setShowTutorial(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const closeModal = () => setModal(null);
 
   const updateProject = (nextProject: Project) =>
     setStore((prev) => ({
@@ -351,10 +357,11 @@ function ConsumoApp() {
           </div>
           <div className="topbar-actions">
             <Button
-              className="icon-btn ghost-icon"
-              title="Tutorial de uso"
-              aria-label="Abrir tutorial de primeiros passos"
-              onClick={() => setModal({ type: "tutorial" })}
+              className={`icon-btn ghost-icon ${showTutorial ? "is-tutorial-on" : ""}`}
+              title="Guia interativo passo a passo"
+              aria-label="Abrir guia interativo passo a passo"
+              aria-pressed={showTutorial}
+              onClick={() => (showTutorial ? dismissTutorial() : openTutorial())}
             >
               <HelpCircle size={19} />
             </Button>
@@ -380,6 +387,22 @@ function ConsumoApp() {
           )}
           {isOfflineReady && !isOffline && (
             <div className="connection-status">Disponível offline</div>
+          )}
+
+          {showTutorial && (
+            <InteractiveTutorialCard
+              project={currentProject}
+              currentTab={tab}
+              hasSimChanges={hasSimChanges}
+              onCreateProject={() => setModal({ type: "project" })}
+              onAddEnvironment={() => setModal({ type: "environment" })}
+              onAddEquipment={() =>
+                setModal({ type: "catalog", envId: currentProject?.environments[0]?.id })
+              }
+              onGoHome={() => navigateTab("home")}
+              onGoSimulate={() => navigateTab("simulate")}
+              onDismiss={dismissTutorial}
+            />
           )}
 
           {currentProject ? (
@@ -788,9 +811,12 @@ function ConsumoApp() {
                   <div className="list">
                     <SettingsActionRow
                       icon="bolt"
-                      title="Tutorial de primeiros passos"
-                      text="Aprenda a cadastrar ambientes, aparelhos, simular e exportar PDF"
-                      onClick={() => setModal({ type: "tutorial" })}
+                      title="Guia interativo passo a passo"
+                      text="Acompanhe na prática como criar instalação, ambientes, aparelhos e simular"
+                      onClick={() => {
+                        openTutorial();
+                        navigateTab("home");
+                      }}
                     />
                     {!isStandalone && (isIos || Boolean(installPrompt)) && (
                       <SettingsActionRow
@@ -899,60 +925,46 @@ function ConsumoApp() {
         <SheetModal
           onClose={closeModal}
           title={
-            modal.type === "tutorial"
-              ? "Como usar o Consumo Consciente"
-              : modal.type === "project"
+            modal.type === "project"
+              ? modal.existing
+                ? "Editar instalação"
+                : "Nova instalação"
+              : modal.type === "environment"
                 ? modal.existing
-                  ? "Editar instalação"
-                  : "Nova instalação"
-                : modal.type === "environment"
+                  ? "Editar ambiente"
+                  : "Novo ambiente"
+                : modal.type === "equipment"
                   ? modal.existing
-                    ? "Editar ambiente"
-                    : "Novo ambiente"
-                  : modal.type === "equipment"
-                    ? modal.existing
-                      ? "Editar aparelho"
-                      : "Novo aparelho"
-                    : modal.type === "catalog"
-                      ? "Adicionar aparelho"
-                      : modal.type === "projects"
-                        ? "Instalações"
-                        : modal.type === "summary"
-                          ? "Resumo"
-                          : modal.type === "example"
-                            ? "Uma casa de exemplo"
-                            : "Instalar no iPhone / iPad"
+                    ? "Editar aparelho"
+                    : "Novo aparelho"
+                  : modal.type === "catalog"
+                    ? "Adicionar aparelho"
+                    : modal.type === "projects"
+                      ? "Instalações"
+                      : modal.type === "summary"
+                        ? "Resumo"
+                        : modal.type === "example"
+                          ? "Uma casa de exemplo"
+                          : "Instalar no iPhone / iPad"
           }
           description={
-            modal.type === "tutorial"
-              ? "Aprenda em 4 passos como organizar seu consumo."
-              : modal.type === "project"
-                ? "Esses dados são usados em todos os cálculos."
-                : modal.type === "environment"
-                  ? "Cômodo ou setor da instalação."
-                  : modal.type === "catalog"
-                    ? "Escolha o aparelho e depois o modelo."
-                    : modal.type === "equipment"
-                      ? modal.chosen?.estimated
-                        ? "Potência estimada: confirme na etiqueta."
-                        : "Informe os dados de uso."
-                      : modal.type === "projects"
-                        ? "Escolha ou crie uma nova."
-                        : modal.type === "install"
-                          ? "Passo a passo exclusivo para Safari no iOS."
-                          : "Relatório de consumo."
+            modal.type === "project"
+              ? "Esses dados são usados em todos os cálculos."
+              : modal.type === "environment"
+                ? "Cômodo ou setor da instalação."
+                : modal.type === "catalog"
+                  ? "Escolha o aparelho e depois o modelo."
+                  : modal.type === "equipment"
+                    ? modal.chosen?.estimated
+                      ? "Potência estimada: confirme na etiqueta."
+                      : "Informe os dados de uso."
+                    : modal.type === "projects"
+                      ? "Escolha ou crie uma nova."
+                      : modal.type === "install"
+                        ? "Passo a passo exclusivo para Safari no iOS."
+                        : "Relatório de consumo."
           }
         >
-          {modal.type === "tutorial" && (
-            <FirstUseTutorial
-              hasProject={Boolean(currentProject)}
-              onFinish={closeModal}
-              onCreateProject={() => {
-                markTutorialSeen();
-                setModal({ type: "project" });
-              }}
-            />
-          )}
           {modal.type === "example" && (
             <ExamplePreview onStart={() => setModal({ type: "project" })} />
           )}

@@ -2737,57 +2737,10 @@ body {
   border-color: var(--line);
 }
 
-.icon-btn.ghost-icon:hover {
-  color: var(--text);
-}
-
-.tutorial-flow {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.tutorial-progress {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.tutorial-dot {
-  height: 5px;
-  border-radius: 99px;
-  border: 0;
-  background: var(--reference-color-19);
-  padding: 0;
-  transition: background 0.2s ease;
-}
-
-.tutorial-dot.done {
-  background: var(--chart-mint);
-}
-
-.tutorial-dot.active {
-  background: var(--yellow);
-}
-
-.tutorial-card {
-  background: var(--surface-inset);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.tutorial-icon-wrap {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  background: var(--reference-color-12);
+.icon-btn.ghost-icon:hover,
+.icon-btn.ghost-icon.is-tutorial-on {
   color: var(--yellow);
-  display: grid;
-  place-items: center;
+  border-color: var(--reference-color-24);
 }
 
 .tutorial-step-label {
@@ -2798,56 +2751,116 @@ body {
   color: var(--chart-mint);
 }
 
-.tutorial-meta h3 {
-  font-size: 17px;
-  font-weight: 750;
-  margin: 4px 0 0;
+.live-tutorial-card {
+  background: linear-gradient(155deg, oklch(28% 0.015 265), oklch(22% 0.01 265));
+  border: 1px solid var(--reference-color-24);
+  box-shadow: var(--surface-shadow);
+  border-radius: 18px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.tutorial-desc {
+.live-tutorial-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.live-tutorial-header h2 {
+  font-size: 16px;
+  font-weight: 750;
+  margin: 3px 0 0;
+}
+
+.live-tutorial-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.live-tutorial-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+@media (width >= 640px) {
+  .live-tutorial-steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.live-step-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-inset);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+  min-width: 0;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.live-step-pill.current {
+  border-color: var(--reference-color-24);
+  background: var(--reference-color-12);
+  color: var(--yellow);
+}
+
+.live-step-pill.done {
+  border-color: oklch(78% 0.14 160 / 0.38);
+  background: oklch(78% 0.14 160 / 0.09);
+  color: var(--chart-mint);
+}
+
+.live-step-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--reference-color-19);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.live-step-pill.current .live-step-badge {
+  background: var(--yellow);
+  color: var(--reference-color-15);
+}
+
+.live-step-pill.done .live-step-badge {
+  background: var(--chart-mint);
+  color: #0b2419;
+}
+
+.live-step-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-tutorial-desc {
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--text);
 }
 
-.tutorial-tips {
-  list-style: none;
-  margin: 0;
-  padding: 10px 0 0;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tutorial-tips li {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.tutorial-tips svg {
-  color: var(--chart-mint);
-  margin-top: 2px;
-}
-
-.tutorial-quick-legend {
+.live-tutorial-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
-  font-size: 11.5px;
-  color: var(--muted);
-}
-
-.tutorial-quick-legend span {
-  display: inline-flex;
+  gap: 8px;
   align-items: center;
-  gap: 5px;
 }
 
 .ios-tutorial-wrap {
