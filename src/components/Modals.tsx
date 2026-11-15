@@ -357,8 +357,8 @@ export function EquipmentForm({
         {useWeekly && (
           <div className="space-y-2 mb-3">
             {WEEK_DAYS_SHORT.map((day, idx) => (
-              <div key={day} className="row">
-                <span className="tiny muted w-8">{day}</span>
+              <div key={day} className="weekly-routine-row">
+                <span className="tiny muted font-semibold">{day}</span>
                 <Field label={`${day} — minutos`}>
                   <input
                     type="number"
@@ -374,7 +374,9 @@ export function EquipmentForm({
                     }
                   />
                 </Field>
-                <span className="tiny muted">{formatDuration(weeklyMinutes[idx] ?? 0)}</span>
+                <span className="tiny muted tabular-nums text-right">
+                  {formatDuration(weeklyMinutes[idx] ?? 0)}
+                </span>
               </div>
             ))}
           </div>

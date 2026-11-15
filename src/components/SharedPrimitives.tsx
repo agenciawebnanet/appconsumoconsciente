@@ -100,13 +100,19 @@ export function SectionTitle({
 export function EquipmentRow({
   eq,
   project,
+  totalKwh,
   onClick,
 }: {
   eq: Equipment;
   project: Project;
+  totalKwh?: number;
   onClick: () => void;
 }) {
   const detail = modelDetail(eq.name);
+  const kwh = calcKwh(eq);
+  const cost = kwh * effectiveTariff(project);
+  const sharePct = totalKwh && totalKwh > 0 ? (kwh / totalKwh) * 100 : null;
+
   return (
     <Button variant="ghost" className="item grow-button equipment-row" onClick={onClick}>
       <div className="avatar g">
@@ -118,12 +124,18 @@ export function EquipmentRow({
         <div className="item-sub">
           {project.environments.find((env) => env.id === eq.envId)?.name} • {eq.qty}x •{" "}
           {formatDuration(eq.hours * 60)}/dia
+          {sharePct != null ? ` • ${formatNumber(sharePct, 0)}% do total` : ""}
         </div>
+        {sharePct != null && (
+          <div className="eq-share-bar" aria-hidden="true">
+            <i style={{ width: `${Math.max(3, Math.min(100, sharePct))}%` }} />
+          </div>
+        )}
       </div>
-      <div className="item-end">
-        {formatNumber(calcKwh(eq))} kWh
+      <div className="item-end tabular-nums">
+        {formatNumber(kwh)} kWh
         <br />
-        <span className="green">{formatBrl(calcKwh(eq) * effectiveTariff(project))}</span>
+        <span className="green">{formatBrl(cost)}</span>
       </div>
     </Button>
   );

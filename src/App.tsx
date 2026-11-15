@@ -22,6 +22,7 @@ import { SimulatorView } from "@/src/components/SimulatorView";
 import { Button } from "@/src/components/ui/button";
 import { UsageChart } from "@/src/components/UsageChart";
 import {
+  avgDailyMinutes,
   calcKwh,
   createId,
   createProject,
@@ -188,17 +189,22 @@ function ConsumoApp() {
         .join("\n")}\n\nValores estimados; podem diferir da fatura real.`
     : "";
 
+  const hasSimChanges =
+    currentProject?.equipments.some(
+      (eq) => sim[eq.id] != null && Math.abs(sim[eq.id] - avgDailyMinutes(eq)) > 0.05
+    ) ?? false;
+
   useEffect(() => {
     if (!currentProject) {
       setPdfBlob(null);
       return;
     }
     try {
-      setPdfBlob(generatePdfReport(currentProject));
+      setPdfBlob(generatePdfReport(currentProject, sim));
     } catch {
       setPdfBlob(null);
     }
-  }, [currentProject]);
+  }, [currentProject, sim]);
 
   const handleSavePdf = () => {
     if (!currentProject || !pdfBlob) {
@@ -398,13 +404,15 @@ function ConsumoApp() {
                       </Button>
                     </div>
 
-                    <ConsumptionRing project={currentProject} />
-
-                    <PrimaryButton onClick={() => setModal({ type: "catalog" })}>
-                      <Plus size={17} /> Adicionar aparelho
-                    </PrimaryButton>
-
-                    <UsageChart project={currentProject} />
+                    <div className="dashboard-charts-grid">
+                      <div className="dashboard-col-left">
+                        <ConsumptionRing project={currentProject} />
+                        <PrimaryButton onClick={() => setModal({ type: "catalog" })}>
+                          <Plus size={17} /> Adicionar aparelho
+                        </PrimaryButton>
+                      </div>
+                      <UsageChart project={currentProject} />
+                    </div>
 
                     <div className="tiles">
                       {(
@@ -427,7 +435,7 @@ function ConsumoApp() {
                           <div className={`icon ${idx === 1 || idx === 2 ? "g" : ""}`}>
                             <AppIcon name={String(iconName)} />
                           </div>
-                          <div className="value">{val}</div>
+                          <div className="value tabular-nums">{val}</div>
                           <div className="label">{label}</div>
                         </div>
                       ))}
@@ -439,23 +447,35 @@ function ConsumoApp() {
                       onAction={() => navigateTab("environments")}
                     />
 
-                    <div className="environment-breakdown">
-                      {currentProject.environments.map((env, idx) => {
-                        const envKwh = currentProject.equipments
-                          .filter((eq) => eq.envId === env.id)
-                          .reduce((acc, eq) => acc + calcKwh(eq), 0);
-                        return (
-                          <div key={env.id} className="mb-3">
-                            <div className="row spread">
-                              <span>{env.name}</span>
-                              <b>{formatNumber(envKwh)} kWh</b>
+                    <div className="card environment-breakdown">
+                      {currentProject.environments
+                        .map((env) => ({
+                          env,
+                          envKwh: currentProject.equipments
+                            .filter((eq) => eq.envId === env.id)
+                            .reduce((acc, eq) => acc + calcKwh(eq), 0),
+                        }))
+                        .sort((a, b) => b.envKwh - a.envKwh)
+                        .map(({ env, envKwh }, idx) => {
+                          const share = totalKwh ? (envKwh / totalKwh) * 100 : 0;
+                          return (
+                            <div key={env.id} className="env-breakdown-row">
+                              <div className="row spread">
+                                <span>{env.name}</span>
+                                <b className="tabular-nums">
+                                  {formatNumber(envKwh, 1)} kWh ·{" "}
+                                  <span className="green">
+                                    {formatBrl(envKwh * effectiveTariff(currentProject))}
+                                  </span>{" "}
+                                  <small className="muted">({formatNumber(share, 0)}%)</small>
+                                </b>
+                              </div>
+                              <div className={`bar ${idx === 0 ? "g" : ""}`}>
+                                <i style={{ width: `${Math.max(2, share)}%` }} />
+                              </div>
                             </div>
-                            <div className={`bar ${idx === 0 ? "g" : ""}`}>
-                              <i style={{ width: `${Math.max(2, (envKwh / (totalKwh || 1)) * 100)}%` }} />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </div>
 
                     <SectionTitle
@@ -464,15 +484,16 @@ function ConsumoApp() {
                       onAction={() => navigateTab("equipment")}
                     />
 
-                    <div className="list">
+                    <div className="list two-col-desktop">
                       {[...currentProject.equipments]
                         .sort((a, b) => calcKwh(b) - calcKwh(a))
-                        .slice(0, 5)
+                        .slice(0, 6)
                         .map((eq) => (
                           <EquipmentRow
                             key={eq.id}
                             eq={eq}
                             project={currentProject}
+                            totalKwh={totalKwh}
                             onClick={() => setModal({ type: "equipment", existing: eq })}
                           />
                         ))}
@@ -496,50 +517,57 @@ function ConsumoApp() {
                   />
                 ) : (
                   <>
-                    <div className="list">
+                    <div className="env-cards-grid">
                       {currentProject.environments.map((env) => {
                         const envItems = currentProject.equipments.filter(
                           (eq) => eq.envId === env.id
                         );
                         const envKwh = envItems.reduce((acc, eq) => acc + calcKwh(eq), 0);
+                        const share = totalKwh ? (envKwh / totalKwh) * 100 : 0;
                         return (
-                          <div key={env.id}>
-                            <div className="item">
+                          <div key={env.id} className="item env-card-item">
+                            <div className="env-card-top">
                               <div className="avatar">
                                 <AppIcon name={env.icon} />
                               </div>
                               <Button
                                 variant="ghost"
-                                className="grow justify-start p-0 text-left"
+                                className="grow justify-start p-0 text-left min-w-0"
                                 onClick={() => {
                                   setSelectedEnvFilter(env.id);
                                   navigateTab("equipment");
                                 }}
                               >
-                                <div>
+                                <div className="min-w-0">
                                   <div className="item-title">{env.name}</div>
-                                  <div className="item-sub">
-                                    {envItems.length} aparelhos • {formatNumber(envKwh)} kWh
+                                  <div className="item-sub tabular-nums">
+                                    {envItems.length} {envItems.length === 1 ? "aparelho" : "aparelhos"} •{" "}
+                                    {formatNumber(envKwh, 1)} kWh ({formatNumber(share, 0)}%)
                                   </div>
                                 </div>
                               </Button>
-                              <div className="item-end green">
+                              <div className="item-end green tabular-nums">
                                 {formatBrl(envKwh * effectiveTariff(currentProject))}
                               </div>
-                              <Button
-                                className="icon-btn"
-                                aria-label="Adicionar aparelho"
-                                onClick={() => setModal({ type: "catalog", envId: env.id })}
-                              >
-                                <AppIcon name="add" />
-                              </Button>
-                              <Button
-                                className="icon-btn"
-                                aria-label="Editar ambiente"
-                                onClick={() => setModal({ type: "environment", existing: env })}
-                              >
-                                <AppIcon name="edit" />
-                              </Button>
+                              <div className="env-card-actions">
+                                <Button
+                                  className="icon-btn"
+                                  aria-label="Adicionar aparelho"
+                                  onClick={() => setModal({ type: "catalog", envId: env.id })}
+                                >
+                                  <AppIcon name="add" />
+                                </Button>
+                                <Button
+                                  className="icon-btn"
+                                  aria-label="Editar ambiente"
+                                  onClick={() => setModal({ type: "environment", existing: env })}
+                                >
+                                  <AppIcon name="edit" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="bar g" aria-hidden="true">
+                              <i style={{ width: `${Math.max(2, share)}%` }} />
                             </div>
                           </div>
                         );
@@ -584,7 +612,26 @@ function ConsumoApp() {
                     />
                   ) : (
                     <>
-                      <div className="list">
+                      <div className="filter-summary-strip tabular-nums">
+                        <span>
+                          {filteredEquipments.length}{" "}
+                          {filteredEquipments.length === 1 ? "aparelho" : "aparelhos"}
+                        </span>
+                        <b>
+                          {formatNumber(
+                            filteredEquipments.reduce((acc, eq) => acc + calcKwh(eq), 0),
+                            1
+                          )}{" "}
+                          kWh ·{" "}
+                          <span className="green">
+                            {formatBrl(
+                              filteredEquipments.reduce((acc, eq) => acc + calcKwh(eq), 0) *
+                                effectiveTariff(currentProject)
+                            )}
+                          </span>
+                        </b>
+                      </div>
+                      <div className="list two-col-desktop">
                         {[...filteredEquipments]
                           .sort((a, b) => calcKwh(b) - calcKwh(a))
                           .map((eq) => (
@@ -592,6 +639,7 @@ function ConsumoApp() {
                               key={eq.id}
                               eq={eq}
                               project={currentProject}
+                              totalKwh={totalKwh}
                               onClick={() => setModal({ type: "equipment", existing: eq })}
                             />
                           ))}
@@ -614,7 +662,12 @@ function ConsumoApp() {
                     text="Adicione aparelhos para comparar cenários."
                   />
                 ) : (
-                  <SimulatorView project={currentProject} sim={sim} setSim={setSim} />
+                  <SimulatorView
+                    project={currentProject}
+                    sim={sim}
+                    setSim={setSim}
+                    onExportPdf={handleSavePdf}
+                  />
                 ))}
 
               {tab === "settings" && (
@@ -665,7 +718,11 @@ function ConsumoApp() {
                     <SettingsActionRow
                       icon="picture_as_pdf"
                       title="Salvar em PDF"
-                      text="Relatório completo para salvar ou compartilhar"
+                      text={
+                        hasSimChanges
+                          ? "Relatório com gráficos + comparativo da simulação ativa"
+                          : "Relatório completo com gráficos para salvar ou compartilhar"
+                      }
                       onClick={handleSavePdf}
                     />
                     <SettingsActionRow
