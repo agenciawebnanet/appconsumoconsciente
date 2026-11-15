@@ -100,4 +100,5 @@ export type ModalState =
   | { type: "summary" }
   | { type: "example" }
   | { type: "install" }
+  | { type: "tutorial" }
   | null;

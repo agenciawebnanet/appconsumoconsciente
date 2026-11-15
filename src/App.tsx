@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { HelpCircle, Plus } from "lucide-react";
 import { AppIcon } from "@/src/components/AppIcon";
 import { CatalogPicker } from "@/src/components/CatalogPicker";
 import { ConsumptionRing } from "@/src/components/ConsumptionRing";
@@ -19,6 +19,7 @@ import {
   SettingsActionRow,
 } from "@/src/components/SharedPrimitives";
 import { SimulatorView } from "@/src/components/SimulatorView";
+import { FirstUseTutorial, IosInstallTutorial } from "@/src/components/TutorialModals";
 import { Button } from "@/src/components/ui/button";
 import { UsageChart } from "@/src/components/UsageChart";
 import {
@@ -85,17 +86,31 @@ function ConsumoApp() {
     window.addEventListener("offline", handleConnection);
     window.addEventListener("consumo-offline-ready", handleOfflineReady);
 
-    setIsIos(
+    const detectedIos =
       /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-        (navigator.userAgent.includes("Mac") && "ontouchend" in document)
-    );
-    setIsStandalone(
-      matchMedia("(display-mode: standalone)").matches ||
-        (navigator as Navigator & { standalone?: boolean }).standalone === true
-    );
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
+      (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+    setIsIos(detectedIos);
+
+    const standaloneQuery = matchMedia("(display-mode: standalone)");
+    const checkStandalone = () =>
+      standaloneQuery.matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setIsStandalone(checkStandalone());
+
+    const handleDisplayModeChange = () => {
+      const active = checkStandalone();
+      setIsStandalone(active);
+      if (active) {
+        setShowInstallBanner(false);
+        setInstallPrompt(null);
+      }
+    };
+    standaloneQuery.addEventListener?.("change", handleDisplayModeChange);
 
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
+      if (checkStandalone()) return;
       setInstallPrompt(e as BeforeInstallPromptEvent);
       setShowInstallBanner(true);
     };
@@ -108,12 +123,21 @@ function ConsumoApp() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
     window.addEventListener("appinstalled", handleInstalled);
 
+    try {
+      if (localStorage.getItem("cc_tutorial_seen_v1") !== "1") {
+        setModal({ type: "tutorial" });
+      }
+    } catch {
+      // ignore storage read errors
+    }
+
     return () => {
       window.removeEventListener("online", handleConnection);
       window.removeEventListener("offline", handleConnection);
       window.removeEventListener("consumo-offline-ready", handleOfflineReady);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
       window.removeEventListener("appinstalled", handleInstalled);
+      standaloneQuery.removeEventListener?.("change", handleDisplayModeChange);
     };
   }, []);
 
@@ -136,8 +160,24 @@ function ConsumoApp() {
   const currentProject = store.projects.find((p) => p.id === store.currentId);
   const totalKwh = currentProject?.equipments.reduce((acc, eq) => acc + calcKwh(eq), 0) ?? 0;
   const totalCost = totalKwh * (currentProject ? effectiveTariff(currentProject) : 0);
+  const hasRoomsAndItems = Boolean(
+    currentProject && currentProject.environments.length > 0 && currentProject.equipments.length > 0
+  );
 
-  const closeModal = () => setModal(null);
+  const markTutorialSeen = () => {
+    try {
+      localStorage.setItem("cc_tutorial_seen_v1", "1");
+    } catch {
+      // ignore storage write errors
+    }
+  };
+
+  const closeModal = () => {
+    if (modal?.type === "tutorial") {
+      markTutorialSeen();
+    }
+    setModal(null);
+  };
 
   const updateProject = (nextProject: Project) =>
     setStore((prev) => ({
@@ -146,6 +186,7 @@ function ConsumoApp() {
     }));
 
   const handleInstall = async () => {
+    if (isStandalone) return;
     if (isIos) {
       setModal({ type: "install" });
       return;
@@ -155,14 +196,13 @@ function ConsumoApp() {
         await installPrompt.prompt();
         const choice = await installPrompt.userChoice;
         if (choice.outcome === "accepted") {
+          setIsStandalone(true);
           setShowInstallBanner(false);
+          setInstallPrompt(null);
         }
-        setInstallPrompt(null);
       } catch {
         setToast("A instalação não pôde ser iniciada. Tente novamente.");
       }
-    } else {
-      setToast("A instalação fica disponível no endereço publicado quando o navegador permitir.");
     }
   };
 
@@ -309,16 +349,26 @@ function ConsumoApp() {
             <h1>{headerTitle}</h1>
             <p>{headerSubtitle}</p>
           </div>
-          {!isStandalone && (isIos || installPrompt) && (
+          <div className="topbar-actions">
             <Button
-              className="icon-btn"
-              title="Instalar aplicativo"
-              aria-label="Instalar aplicativo"
-              onClick={handleInstall}
+              className="icon-btn ghost-icon"
+              title="Tutorial de uso"
+              aria-label="Abrir tutorial de primeiros passos"
+              onClick={() => setModal({ type: "tutorial" })}
             >
-              <AppIcon name="download" />
+              <HelpCircle size={19} />
             </Button>
-          )}
+            {!isStandalone && (isIos || Boolean(installPrompt)) && (
+              <Button
+                className="icon-btn"
+                title={isIos ? "Como instalar no iPhone/iPad" : "Instalar aplicativo"}
+                aria-label={isIos ? "Como instalar no iPhone ou iPad" : "Instalar aplicativo"}
+                onClick={handleInstall}
+              >
+                <AppIcon name="download" />
+              </Button>
+            )}
+          </div>
         </header>
 
         <main className="view">
@@ -336,7 +386,8 @@ function ConsumoApp() {
             <div key={tab} className="view-content">
               {tab === "home" &&
               currentProject.setupStage &&
-              currentProject.setupStage !== "done" ? (
+              currentProject.setupStage !== "done" &&
+              !hasRoomsAndItems ? (
                 <SetupFlow
                   project={currentProject}
                   onAddRoom={(template, count) =>
@@ -733,17 +784,27 @@ function ConsumoApp() {
                     />
                   </div>
 
-                  {!isStandalone && (isIos || installPrompt) && (
-                    <>
-                      <SectionTitle title="Aplicativo" />
+                  <SectionTitle title="Ajuda e Aplicativo" />
+                  <div className="list">
+                    <SettingsActionRow
+                      icon="bolt"
+                      title="Tutorial de primeiros passos"
+                      text="Aprenda a cadastrar ambientes, aparelhos, simular e exportar PDF"
+                      onClick={() => setModal({ type: "tutorial" })}
+                    />
+                    {!isStandalone && (isIos || Boolean(installPrompt)) && (
                       <SettingsActionRow
                         icon="download"
-                        title="Instalar aplicativo"
-                        text="Adicionar à tela inicial"
+                        title={isIos ? "Instalar no iPhone / iPad" : "Instalar aplicativo"}
+                        text={
+                          isIos
+                            ? "Ver passo a passo para adicionar à tela inicial (Safari)"
+                            : "Instalar agora na tela inicial"
+                        }
                         onClick={handleInstall}
                       />
-                    </>
-                  )}
+                    )}
+                  </div>
 
                   <SectionTitle title="Dados" />
                   <div className="list">
@@ -811,14 +872,18 @@ function ConsumoApp() {
         </nav>
       </div>
 
-      {showInstallBanner && !isStandalone && (isIos || installPrompt) && (
+      {showInstallBanner && !isStandalone && (isIos || Boolean(installPrompt)) && (
         <div className="install-banner">
           <div className="text">
-            <b>Instalar aplicativo</b>
-            <small>Na tela inicial, mesmo sem internet.</small>
+            <b>{isIos ? "Instalar no iPhone / iPad" : "Instalar aplicativo"}</b>
+            <small>
+              {isIos
+                ? "Veja o tutorial rápido para adicionar pelo Safari."
+                : "Adicione na tela inicial com 1 toque."}
+            </small>
           </div>
           <Button className="btn primary" onClick={handleInstall}>
-            Instalar
+            {isIos ? "Como instalar" : "Instalar"}
           </Button>
           <Button
             className="icon-btn"
@@ -834,48 +899,60 @@ function ConsumoApp() {
         <SheetModal
           onClose={closeModal}
           title={
-            modal.type === "project"
-              ? modal.existing
-                ? "Editar instalação"
-                : "Nova instalação"
-              : modal.type === "environment"
+            modal.type === "tutorial"
+              ? "Como usar o Consumo Consciente"
+              : modal.type === "project"
                 ? modal.existing
-                  ? "Editar ambiente"
-                  : "Novo ambiente"
-                : modal.type === "equipment"
+                  ? "Editar instalação"
+                  : "Nova instalação"
+                : modal.type === "environment"
                   ? modal.existing
-                    ? "Editar aparelho"
-                    : "Novo aparelho"
-                  : modal.type === "catalog"
-                    ? "Adicionar aparelho"
-                    : modal.type === "projects"
-                      ? "Instalações"
-                      : modal.type === "summary"
-                        ? "Resumo"
-                        : modal.type === "example"
-                          ? "Uma casa de exemplo"
-                          : isIos
-                            ? "Instalar no iPhone"
-                            : "Instalar aplicativo"
+                    ? "Editar ambiente"
+                    : "Novo ambiente"
+                  : modal.type === "equipment"
+                    ? modal.existing
+                      ? "Editar aparelho"
+                      : "Novo aparelho"
+                    : modal.type === "catalog"
+                      ? "Adicionar aparelho"
+                      : modal.type === "projects"
+                        ? "Instalações"
+                        : modal.type === "summary"
+                          ? "Resumo"
+                          : modal.type === "example"
+                            ? "Uma casa de exemplo"
+                            : "Instalar no iPhone / iPad"
           }
           description={
-            modal.type === "project"
-              ? "Esses dados são usados em todos os cálculos."
-              : modal.type === "environment"
-                ? "Cômodo ou setor da instalação."
-                : modal.type === "catalog"
-                  ? "Escolha o aparelho e depois o modelo."
-                  : modal.type === "equipment"
-                    ? modal.chosen?.estimated
-                      ? "Potência estimada: confirme na etiqueta."
-                      : "Informe os dados de uso."
-                    : modal.type === "projects"
-                      ? "Escolha ou crie uma nova."
-                      : modal.type === "install"
-                        ? "Adicionar à tela inicial."
-                        : "Relatório de consumo."
+            modal.type === "tutorial"
+              ? "Aprenda em 4 passos como organizar seu consumo."
+              : modal.type === "project"
+                ? "Esses dados são usados em todos os cálculos."
+                : modal.type === "environment"
+                  ? "Cômodo ou setor da instalação."
+                  : modal.type === "catalog"
+                    ? "Escolha o aparelho e depois o modelo."
+                    : modal.type === "equipment"
+                      ? modal.chosen?.estimated
+                        ? "Potência estimada: confirme na etiqueta."
+                        : "Informe os dados de uso."
+                      : modal.type === "projects"
+                        ? "Escolha ou crie uma nova."
+                        : modal.type === "install"
+                          ? "Passo a passo exclusivo para Safari no iOS."
+                          : "Relatório de consumo."
           }
         >
+          {modal.type === "tutorial" && (
+            <FirstUseTutorial
+              hasProject={Boolean(currentProject)}
+              onFinish={closeModal}
+              onCreateProject={() => {
+                markTutorialSeen();
+                setModal({ type: "project" });
+              }}
+            />
+          )}
           {modal.type === "example" && (
             <ExamplePreview onStart={() => setModal({ type: "project" })} />
           )}
@@ -974,6 +1051,8 @@ function ConsumoApp() {
                 }
                 updateProject({
                   ...currentProject,
+                  setupStage:
+                    currentProject.environments.length > 0 ? "done" : currentProject.setupStage,
                   equipments: modal.existing
                     ? currentProject.equipments.map((item) =>
                         item.id === eq.id ? eq : item
@@ -1030,37 +1109,7 @@ function ConsumoApp() {
           )}
 
           {modal.type === "install" && isIos && (
-            <>
-              <ol className="ios-steps">
-                <li>
-                  <span>1</span>
-                  <p>
-                    Abra no <b>Safari</b>.
-                  </p>
-                </li>
-                <li>
-                  <span>2</span>
-                  <p>
-                    Toque em <b>Compartilhar</b>.
-                  </p>
-                </li>
-                <li>
-                  <span>3</span>
-                  <p>
-                    Escolha <b>Adicionar à Tela de Início</b>.
-                  </p>
-                </li>
-                <li>
-                  <span>4</span>
-                  <p>
-                    Toque em <b>Adicionar</b>.
-                  </p>
-                </li>
-              </ol>
-              <div className="sheet-actions">
-                <PrimaryButton onClick={closeModal}>Entendi</PrimaryButton>
-              </div>
-            </>
+            <IosInstallTutorial onClose={closeModal} />
           )}
 
           {modal.type === "summary" && (
