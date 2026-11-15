@@ -1,0 +1,6 @@
+{
+  "name": "Consumo Consciente — Calculadora de energia",
+  "description": "Organize ambientes e aparelhos, calcule seu consumo de energia e simule economia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
